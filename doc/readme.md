@@ -35,3 +35,13 @@ Utiliser le terminal pour effectuer la phase d'analyse
 4. Si le test est valide, trouver une lib pour capter le contenu de l'ecran afin d'en determiner couleur et intensite lumineuse
 5. optimiser pour ne pas consommer trop de ressources
 6. packaging propre
+
+## Resultats des premiers tests
+
+- Controleur Bluetooth et H6056 detectes : `AA:BB:CC:DD:EE:FF`.
+- La luminosite BLE fonctionne sur une plage de `0` a `100`.
+- La commande couleur de `govee_H613_BTcontroller` ne fonctionne pas avec le H6056.
+- La trame BLE segmentee `0x33 0x05 0x15` avec le masque `FF 0F` fonctionne pour les 12 segments.
+- Une commande BLE avec connexion puis deconnexion prend environ 2 secondes.
+
+Conclusion : le BLE local est utilisable pour le PoC, a condition de garder la connexion ouverte pendant l'ambilight. La librairie H613 ne doit pas etre utilisee pour les couleurs du H6056.
