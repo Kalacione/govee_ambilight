@@ -23,6 +23,9 @@ PROFILES = {"normal": 4.0, "fast": 10.0}
 MASK_LEFT = (0x3F, 0x00)
 MASK_RIGHT = (0xC0, 0x0F)
 
+# rendu Govee trop froid/bleute : on plafonne chaque canal pour rechauffer le rendu
+CHANNEL_GAIN = (1.0, 0.9, 0.8)
+
 
 async def send(client, payload):
     # la lampe peut se deconnecter brievement en cours de route ; bleak perd
@@ -39,6 +42,7 @@ def analyze_side(rgb):
     red = round(sum(rgb[0::3]) / pixels)
     green = round(sum(rgb[1::3]) / pixels)
     blue = round(sum(rgb[2::3]) / pixels)
+    red, green, blue = (min(255, round(value * gain)) for value, gain in zip((red, green, blue), CHANNEL_GAIN))
     brightness = round(max(red, green, blue) * 100 / 255)
     return (red, green, blue), brightness
 
