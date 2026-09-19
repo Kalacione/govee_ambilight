@@ -14,7 +14,8 @@ gi.require_version("Gst", "1.0")
 from gi.repository import Gst
 
 from govee_control import CONTROL_CHARACTERISTIC, brightness_command, color_command, frame
-from test_pipewire_capture import PORTAL_NAME, SESSION, make_pipeline, open_stream
+from test_pipewire_capture import PORTAL_NAME, SESSION, open_stream
+from test_pipewire_capture_gl import start_pipeline
 
 
 PROFILES = {"normal": 4.0, "fast": 10.0}
@@ -73,10 +74,13 @@ def parse_args():
     parser.add_argument("mac", help="Adresse MAC Bluetooth de la lampe")
     parser.add_argument("--profile", choices=PROFILES, default="normal")
     parser.add_argument("--width", type=int, default=160)
+    parser.add_argument("--height", type=int, default=None, help="defaut : proportionnel 16:9")
     parser.add_argument("--invert-lr", action="store_true", help="les 2 blocs sont physiquement inverses derriere l'ecran")
     args = parser.parse_args()
     if args.width < 1 or args.width % 4 != 0:
         parser.error("--width doit etre un multiple de 4 (evite le padding de ligne GStreamer)")
+    if args.height is None:
+        args.height = round(args.width * 9 / 16)
     return args
 
 
@@ -91,7 +95,16 @@ async def run(args):
     bus = dbus.SessionBus()
     print("Choisissez l'ecran dans la boite de dialogue KDE.")
     session, node_id, fd = open_stream(bus)
-    pipeline, sink = make_pipeline(fd, node_id, args.width, int(PROFILES[args.profile]))
+    fps = int(PROFILES[args.profile])
+    pipeline, error = start_pipeline(fd, node_id, args.width, args.height, fps, dmabuf=True)
+    if pipeline is not None:
+        print("Capture GPU (DMA-BUF, zero-copy).")
+    else:
+        print(f"DMA-BUF refuse ({error}), repli sur upload GL classique.")
+        pipeline, error = start_pipeline(fd, node_id, args.width, args.height, fps, dmabuf=False)
+        if pipeline is None:
+            raise RuntimeError(f"Impossible de demarrer le pipeline GL : {error}")
+    sink = pipeline.get_by_name("sink")
 
     print(f"Connexion a {args.mac}...")
     client = BleakClient(args.mac)

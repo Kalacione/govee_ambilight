@@ -58,3 +58,25 @@ Resultat mesure (`test_pipewire_capture.py`, capture reduite a 160px de large) :
 - charge CPU observee : 2 a 4%
 
 Conclusion : cette methode de capture est validee pour le PoC ambilight.
+
+## Micro-saccades video pendant la capture
+
+Constat : des micro-saccades video apparaissent des que le flux de capture est actif, quel que soit le profil (normal/fast).
+
+Pistes testees :
+- pipeline CPU allege (`videorate` + `videoconvertscale` en `nearest-neighbour`, cf `test_pipewire_capture.py`).
+- pipeline 100% GPU NVIDIA (`glupload` -> `glcolorconvert` -> `glvideomixer` (resize) -> `gldownload`, cf `test_pipewire_capture_gl.py`), conserve en alternative mais pas active par defaut.
+
+Resultat : les deux pipelines donnent le meme temps de traitement tres bas (<0.09s) et les memes micro-saccades. Le traitement cote script n'est donc pas la cause.
+
+Cause identifiee : bug KWin confirme dans le composant `screencasting` ([bug KDE 479250](https://bugs.kde.org/show_bug.cgi?id=479250), statut CONFIRMED, actif en 2026), corrobore par des rapports communautaires similaires (ex. Sunshine/kwin capture backend). Le cout est cree par KWin au moment ou il exporte les frames vers PipeWire, avant meme que notre pipeline ne les recoive.
+
+## Solution retenue : capture GPU avec DMA-BUF
+
+Deux leviers supplementaires ont permis de resoudre les micro-saccades :
+- `cursor_mode` du portail passe de `2` (curseur incruste) a `1` (cache) : evite a KWin de composer le curseur sur chaque frame.
+- Le pipeline GPU tente une negociation `video/x-raw(memory:DMABuf)` avec `pipewiresrc` (partage GPU zero-copy), avec repli automatique et transparent sur l'upload GL classique si KWin la refuse.
+
+Resultat mesure : negociation DMA-BUF acceptee, micro-saccades disparues, temps de traitement ~0.001s.
+
+`ambilight.py` utilise desormais ce pipeline GPU par defaut (`test_pipewire_capture_gl.py`). Le pipeline CPU (`test_pipewire_capture.py`) reste disponible tel quel en reference/fallback si le GPU ou le driver NVIDIA venait a poser probleme sur une autre machine.
