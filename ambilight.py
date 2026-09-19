@@ -91,7 +91,7 @@ async def run(args):
     bus = dbus.SessionBus()
     print("Choisissez l'ecran dans la boite de dialogue KDE.")
     session, node_id, fd = open_stream(bus)
-    pipeline, sink = make_pipeline(fd, node_id, args.width)
+    pipeline, sink = make_pipeline(fd, node_id, args.width, int(PROFILES[args.profile]))
 
     print(f"Connexion a {args.mac}...")
     client = BleakClient(args.mac)
