@@ -19,8 +19,12 @@ def frame(payload):
     return data
 
 
-def color_command(red, green, blue):
-    return frame([0x33, 0x05, 0x15, 0x01, red, green, blue, 0, 0, 0, 0, 0, *ALL_SEGMENTS])
+def color_command(red, green, blue, mask=ALL_SEGMENTS):
+    return frame([0x33, 0x05, 0x15, 0x01, red, green, blue, 0, 0, 0, 0, 0, *mask])
+
+
+def brightness_command(level, mask=ALL_SEGMENTS):
+    return frame([0x33, 0x05, 0x15, 0x02, level, *mask])
 
 
 def parse_color(value):
