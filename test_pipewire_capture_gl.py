@@ -34,20 +34,31 @@ def parse_args():
     return args
 
 
-def make_gl_pipeline(fd, node_id, width, height, fps):
-    pipeline = Gst.parse_launch(
+def make_gl_pipeline(fd, node_id, width, height, fps, dmabuf):
+    source_caps = "video/x-raw(memory:DMABuf)" if dmabuf else "video/x-raw"
+    return Gst.parse_launch(
         "pipewiresrc name=source "
         f"fd={fd} path={node_id} "
         "! queue max-size-buffers=1 leaky=downstream "
         # videorate avant l'upload GPU : on n'envoie au GPU que les frames retenues
-        f"! videorate ! video/x-raw,framerate={fps}/1 "
+        f"! videorate ! {source_caps},framerate={fps}/1 "
         "! glupload ! glcolorconvert ! video/x-raw(memory:GLMemory),format=RGBA "
         f"! glvideomixer name=mix sink_0::width={width} sink_0::height={height} "
         f"! video/x-raw,format=RGB,width={width},height={height} "
         "! gldownload ! appsink name=sink max-buffers=1 drop=true sync=false"
     )
+
+
+def start_pipeline(fd, node_id, width, height, fps, dmabuf, timeout=3):
+    pipeline = make_gl_pipeline(fd, node_id, width, height, fps, dmabuf)
     pipeline.set_state(Gst.State.PLAYING)
-    return pipeline, pipeline.get_by_name("sink")
+    bus = pipeline.get_bus()
+    msg = bus.timed_pop_filtered(int(timeout * Gst.SECOND), Gst.MessageType.ERROR | Gst.MessageType.ASYNC_DONE)
+    if msg is not None and msg.type == Gst.MessageType.ERROR:
+        error, _debug = msg.parse_error()
+        pipeline.set_state(Gst.State.NULL)
+        return None, str(error)
+    return pipeline, None
 
 
 def main():
@@ -58,7 +69,16 @@ def main():
     print("Choisissez l'ecran dans la boite de dialogue KDE.")
     session, node_id, fd = open_stream(bus)
     fps = max(1, round(1 / args.interval))
-    pipeline, sink = make_gl_pipeline(fd, node_id, args.width, args.height, fps)
+
+    pipeline, error = start_pipeline(fd, node_id, args.width, args.height, fps, dmabuf=True)
+    if pipeline is not None:
+        print("Negociation DMA-BUF acceptee (zero-copy GPU).")
+    else:
+        print(f"DMA-BUF refuse ({error}), repli sur upload GL classique.")
+        pipeline, error = start_pipeline(fd, node_id, args.width, args.height, fps, dmabuf=False)
+        if pipeline is None:
+            raise RuntimeError(f"Impossible de demarrer le pipeline GL : {error}")
+    sink = pipeline.get_by_name("sink")
     print(f"Flux GPU (GL) -> {args.width}x{args.height}, {fps} fps. Ctrl+C pour arreter.")
     try:
         while True:
