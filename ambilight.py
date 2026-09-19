@@ -7,6 +7,7 @@ import dbus
 import dbus.mainloop.glib
 import gi
 from bleak import BleakClient
+from bleak.exc import BleakError
 
 gi.require_version("GLib", "2.0")
 gi.require_version("Gst", "1.0")
@@ -17,6 +18,16 @@ from test_pipewire_capture import PORTAL_NAME, SESSION, analyze, make_pipeline, 
 
 
 PROFILES = {"normal": 4.0, "fast": 10.0}
+
+
+async def send(client, payload):
+    # la lampe peut se deconnecter brievement en cours de route ; bleak perd
+    # alors son cache de services et refuse l'ecriture jusqu'a reconnexion
+    try:
+        await client.write_gatt_char(CONTROL_CHARACTERISTIC, payload, response=False)
+    except BleakError:
+        await client.connect()
+        await client.write_gatt_char(CONTROL_CHARACTERISTIC, payload, response=False)
 
 
 def parse_args():
@@ -47,7 +58,7 @@ async def run(args):
     await client.disconnect()
     await client.connect()
     try:
-        await client.write_gatt_char(CONTROL_CHARACTERISTIC, frame([0x33, 0x01, 0x01]), response=False)
+        await send(client, frame([0x33, 0x01, 0x01]))
         print(f"Ambilight actif, profil {args.profile} ({PROFILES[args.profile]:g} Hz). Ctrl+C pour arreter.")
 
         last_color = None
@@ -60,8 +71,8 @@ async def run(args):
                     red, green, blue, brightness = analyze(sample)
                     color = (red, green, blue)
                     if color != last_color or brightness != last_brightness:
-                        await client.write_gatt_char(CONTROL_CHARACTERISTIC, frame([0x33, 0x04, brightness]), response=False)
-                        await client.write_gatt_char(CONTROL_CHARACTERISTIC, color_command(*color), response=False)
+                        await send(client, frame([0x33, 0x04, brightness]))
+                        await send(client, color_command(*color))
                         last_color, last_brightness = color, brightness
                 elapsed = time.monotonic() - started
                 await asyncio.sleep(max(0, interval - elapsed))
