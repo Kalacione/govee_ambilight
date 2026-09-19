@@ -41,7 +41,12 @@ async def run(args):
     pipeline, sink = make_pipeline(fd, node_id, args.width)
 
     print(f"Connexion a {args.mac}...")
-    async with BleakClient(args.mac) as client:
+    client = BleakClient(args.mac)
+    # une session precedente mal fermee (double Ctrl+C) laisse parfois BlueZ
+    # "deja connecte" sans avoir resolu les services : on repart d'un etat propre
+    await client.disconnect()
+    await client.connect()
+    try:
         await client.write_gatt_char(CONTROL_CHARACTERISTIC, frame([0x33, 0x01, 0x01]), response=False)
         print(f"Ambilight actif, profil {args.profile} ({PROFILES[args.profile]:g} Hz). Ctrl+C pour arreter.")
 
@@ -65,6 +70,8 @@ async def run(args):
         finally:
             pipeline.set_state(Gst.State.NULL)
             dbus.Interface(bus.get_object(PORTAL_NAME, session), SESSION).Close()
+    finally:
+        await client.disconnect()
     print("Deconnecte.")
 
 
