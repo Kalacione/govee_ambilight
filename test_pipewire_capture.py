@@ -68,7 +68,8 @@ def open_stream(bus):
             "handle_token": option(dbus.String(f"select{token}")),
             "types": option(dbus.UInt32(1)),
             "multiple": option(dbus.Boolean(False)),
-            "cursor_mode": option(dbus.UInt32(2)),
+            # cache le curseur : evite a KWin de le composer sur chaque frame, inutile pour une moyenne de couleur
+            "cursor_mode": option(dbus.UInt32(1)),
         },
     )
     wait_for_response(bus, select)
@@ -79,12 +80,14 @@ def open_stream(bus):
     return session, node_id, pipewire_fd.take()
 
 
-def make_pipeline(fd, node_id, width):
+def make_pipeline(fd, node_id, width, fps):
     pipeline = Gst.parse_launch(
         "pipewiresrc name=source "
         f"fd={fd} path={node_id} "
         "! queue max-size-buffers=1 leaky=downstream "
-        "! videoconvert ! videoscale "
+        # videorate coupe les frames en trop avant l'etape couteuse de conversion/redimensionnement
+        f"! videorate ! video/x-raw,framerate={fps}/1 "
+        "! videoconvertscale method=nearest-neighbour "
         f"! video/x-raw,format=RGB,width={width} "
         "! appsink name=sink max-buffers=1 drop=true sync=false"
     )
@@ -116,8 +119,9 @@ def main():
     bus = dbus.SessionBus()
     print("Choisissez l'ecran dans la boite de dialogue KDE.")
     session, node_id, fd = open_stream(bus)
-    pipeline, sink = make_pipeline(fd, node_id, args.width)
-    print(f"Flux en memoire -> {args.width}px. Ctrl+C pour arreter.")
+    fps = max(1, round(1 / args.interval))
+    pipeline, sink = make_pipeline(fd, node_id, args.width, fps)
+    print(f"Flux en memoire -> {args.width}px, {fps} fps. Ctrl+C pour arreter.")
     try:
         while True:
             started = time.monotonic()
