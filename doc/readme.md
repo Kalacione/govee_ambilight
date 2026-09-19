@@ -51,6 +51,10 @@ Conclusion : le BLE local est utilisable pour le PoC, a condition de garder la c
 
 ## Capture ecran
 
-La session est KDE/KWin sous Wayland. `grim` ne convient pas a ce compositeur. Le PoC utilisera le portail de screencast KDE et PipeWire, puis `ffmpeg` pour reduire le flux a environ 160 pixels de large et le limiter au profil choisi (4 ou 10 Hz). L'analyse ne manipulera donc jamais une image 4K.
+La session est KDE/KWin sous Wayland. `grim` ne convient pas a ce compositeur. Le PoC utilise le portail de screencast KDE (`xdg-desktop-portal-kde`) et PipeWire via GStreamer (`pipewiresrc`), en gardant le flux entierement en memoire (aucun fichier disque, aucune image 4K traitee).
 
-Etat actuel : PipeWire est actif, mais le backend `xdg-desktop-portal-kde` n'expose pas l'interface `ScreenCast`. Il faut installer ou reparer ce backend avant d'implementer le test de capture.
+Resultat mesure (`test_pipewire_capture.py`, capture reduite a 160px de large) :
+- temps de traitement par image : ~0.004s
+- charge CPU observee : 2 a 4%
+
+Conclusion : cette methode de capture est validee pour le PoC ambilight.
