@@ -42,6 +42,10 @@ rm ~/.config/autostart/AmbiLight.desktop             # disable autostart
 
 Design notes, in French, are in [doc/design.md](doc/design.md).
 
+## Trademarks
+
+This is a personal project, not affiliated with or endorsed by Govee or Philips. Govee and Ambilight are trademarks of their respective owners.
+
 ## License
 
 [WTFPL](LICENSE)
