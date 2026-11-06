@@ -41,3 +41,7 @@ rm ~/.config/autostart/AmbiLight.desktop             # disable autostart
 ```
 
 Design notes, in French, are in [doc/design.md](doc/design.md).
+
+## License
+
+[WTFPL](LICENSE)
