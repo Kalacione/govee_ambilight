@@ -20,6 +20,10 @@ from test_pipewire_capture_gl import start_pipeline
 
 PROFILES = {"normal": 4.0, "fast": 10.0}
 
+RETRY_SECONDS = 30
+SCAN_SECONDS = 5
+BLE_ERRORS = (BleakError, TimeoutError)
+
 # segments 0-5 = un bloc physique, 6-11 = l'autre (H6056 : 2 blocs, 1 seul appareil BLE)
 MASK_LEFT = (0x3F, 0x00)
 MASK_RIGHT = (0xC0, 0x0F)
@@ -84,15 +88,24 @@ def parse_args():
     return args
 
 
-async def run(args):
-    interval = 1 / PROFILES[args.profile]
-    mask_left, mask_right = MASK_LEFT, MASK_RIGHT
-    if args.invert_lr:
-        mask_left, mask_right = mask_right, mask_left
+async def connect(mac):
+    # la lampe peut etre eteinte a l'ouverture de session : on attend qu'elle reponde.
+    # scan court : le dongle est partage avec la manette
+    while True:
+        client = BleakClient(mac, timeout=SCAN_SECONDS)
+        try:
+            # une session precedente mal fermee (double Ctrl+C) laisse parfois BlueZ
+            # "deja connecte" sans avoir resolu les services : on repart d'un etat propre
+            await client.disconnect()
+            await client.connect()
+            await send(client, frame([0x33, 0x01, 0x01]))
+            return client
+        except BLE_ERRORS as error:
+            print(f"Lampe {mac} injoignable ({str(error) or type(error).__name__}), nouvel essai dans {RETRY_SECONDS} s.")
+            await asyncio.sleep(RETRY_SECONDS)
 
-    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-    Gst.init(None)
-    bus = dbus.SessionBus()
+
+def open_capture(bus, args):
     print("Choisissez l'ecran dans la boite de dialogue KDE.")
     session, node_id, fd = open_stream(bus)
     fps = int(PROFILES[args.profile])
@@ -104,44 +117,55 @@ async def run(args):
         pipeline, error = start_pipeline(fd, node_id, args.width, args.height, fps, dmabuf=False)
         if pipeline is None:
             raise RuntimeError(f"Impossible de demarrer le pipeline GL : {error}")
+    return session, pipeline
+
+
+async def stream(args, bus, client):
+    interval = 1 / PROFILES[args.profile]
+    mask_left, mask_right = MASK_LEFT, MASK_RIGHT
+    if args.invert_lr:
+        mask_left, mask_right = mask_right, mask_left
+
+    session, pipeline = open_capture(bus, args)
     sink = pipeline.get_by_name("sink")
-
-    print(f"Connexion a {args.mac}...")
-    client = BleakClient(args.mac)
-    # une session precedente mal fermee (double Ctrl+C) laisse parfois BlueZ
-    # "deja connecte" sans avoir resolu les services : on repart d'un etat propre
-    await client.disconnect()
-    await client.connect()
+    print(f"Ambilight actif, profil {args.profile} ({PROFILES[args.profile]:g} Hz). Ctrl+C pour arreter.")
+    last_left = (None, None)
+    last_right = (None, None)
     try:
-        await send(client, frame([0x33, 0x01, 0x01]))
-        print(f"Ambilight actif, profil {args.profile} ({PROFILES[args.profile]:g} Hz). Ctrl+C pour arreter.")
-
-        last_left = (None, None)
-        last_right = (None, None)
-        try:
-            while True:
-                started = time.monotonic()
-                sample = sink.emit("try-pull-sample", Gst.SECOND)
-                if sample is not None:
-                    (color_left, brightness_left), (color_right, brightness_right) = analyze_left_right(sample, args.width)
-                    if (color_left, brightness_left) != last_left:
-                        await send(client, brightness_command(brightness_left, mask=mask_left))
-                        await send(client, color_command(*color_left, mask=mask_left))
-                        last_left = (color_left, brightness_left)
-                    if (color_right, brightness_right) != last_right:
-                        await send(client, brightness_command(brightness_right, mask=mask_right))
-                        await send(client, color_command(*color_right, mask=mask_right))
-                        last_right = (color_right, brightness_right)
-                elapsed = time.monotonic() - started
-                await asyncio.sleep(max(0, interval - elapsed))
-        except KeyboardInterrupt:
-            print("\nArret de l'ambilight...")
-        finally:
-            pipeline.set_state(Gst.State.NULL)
-            dbus.Interface(bus.get_object(PORTAL_NAME, session), SESSION).Close()
+        while True:
+            started = time.monotonic()
+            sample = sink.emit("try-pull-sample", Gst.SECOND)
+            if sample is not None:
+                (color_left, brightness_left), (color_right, brightness_right) = analyze_left_right(sample, args.width)
+                if (color_left, brightness_left) != last_left:
+                    await send(client, brightness_command(brightness_left, mask=mask_left))
+                    await send(client, color_command(*color_left, mask=mask_left))
+                    last_left = (color_left, brightness_left)
+                if (color_right, brightness_right) != last_right:
+                    await send(client, brightness_command(brightness_right, mask=mask_right))
+                    await send(client, color_command(*color_right, mask=mask_right))
+                    last_right = (color_right, brightness_right)
+            elapsed = time.monotonic() - started
+            await asyncio.sleep(max(0, interval - elapsed))
     finally:
-        await client.disconnect()
-    print("Deconnecte.")
+        pipeline.set_state(Gst.State.NULL)
+        dbus.Interface(bus.get_object(PORTAL_NAME, session), SESSION).Close()
+
+
+async def run(args):
+    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+    Gst.init(None)
+    bus = dbus.SessionBus()
+    # la capture ne tourne que si la lampe repond : rien ne charge le GPU quand elle est eteinte
+    while True:
+        print(f"Connexion a {args.mac}...")
+        client = await connect(args.mac)
+        try:
+            await stream(args, bus, client)
+        except BLE_ERRORS as error:
+            print(f"Lampe perdue ({str(error) or type(error).__name__}).")
+        finally:
+            await client.disconnect()
 
 
 if __name__ == "__main__":

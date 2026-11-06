@@ -37,7 +37,7 @@ def brightness(level):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Teste des trames couleur BLE Govee, une toutes les 5 secondes.")
-    parser.add_argument("mac", nargs="?", default="AA:BB:CC:DD:EE:FF")
+    parser.add_argument("mac", help="Adresse MAC Bluetooth de la lampe")
     parser.add_argument("--brightness", type=int, default=100)
     args = parser.parse_args()
     if not 0 <= args.brightness <= 100:

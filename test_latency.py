@@ -16,7 +16,7 @@ STATES = (
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Teste la cadence BLE sans deconnexion entre les changements.")
-    parser.add_argument("mac", nargs="?", default="AA:BB:CC:DD:EE:FF")
+    parser.add_argument("mac", help="Adresse MAC Bluetooth de la lampe")
     parser.add_argument("--stage-seconds", type=int, default=10)
     args = parser.parse_args()
     if args.stage_seconds < 1:

@@ -10,5 +10,19 @@ sudo pacman -S --needed bluez bluez-utils python python-pip python-gobject pytho
 "$script_dir/.venv/bin/python" -m pip install --upgrade pip
 "$script_dir/.venv/bin/python" -m pip install bleak
 
-print "Installation terminee. Utilisez $script_dir/.venv/bin/python pour les scripts du projet."
+[[ -f "$script_dir/.env" ]] || cp "$script_dir/.env.exemple" "$script_dir/.env"
+
+# raccourci KDE, et meme fichier en autostart de session
+cat > ~/.local/share/applications/AmbiLight.desktop <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=AmbiLight
+Exec=$script_dir/al.sh
+Path=$script_dir
+Terminal=false
+DESKTOP
+mkdir -p ~/.config/autostart
+ln -sf ~/.local/share/applications/AmbiLight.desktop ~/.config/autostart/AmbiLight.desktop
+
+print "Installation terminee. Renseignez GOVEE_MAC dans $script_dir/.env."
 

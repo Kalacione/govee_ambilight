@@ -28,7 +28,7 @@ def color_command_with_extra(rgb, position, value):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Explore si un octet de padding influence la vitesse de fondu.")
-    parser.add_argument("mac", nargs="?", default="AA:BB:CC:DD:EE:FF")
+    parser.add_argument("mac", help="Adresse MAC Bluetooth de la lampe")
     args = parser.parse_args()
     return args
 

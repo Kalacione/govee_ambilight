@@ -1,4 +1,28 @@
-# Systeme ambilight avec lumiere Govee via bluetooth
+# Ambilight Govee pour Linux (KDE Wayland)
+
+Fait suivre a des lumieres Govee Bluetooth (teste sur un H6056, 2 blocs, gauche et droite) les couleurs de l'ecran : capture PipeWire via le portail KDE, couleur moyenne de chaque moitie, envoi BLE.
+
+## Installation
+
+```sh
+./setup.sh                  # dependances pacman, venv, .env, raccourci et autostart
+$EDITOR .env                # GOVEE_MAC, la MAC de la lampe
+./al.sh                     # ou le raccourci AmbiLight
+```
+
+Au premier lancement, KDE demande quel ecran capturer, le choix est ensuite memorise.
+
+Lancement automatique a l'ouverture de session KDE (`~/.config/autostart/AmbiLight.desktop`). Si la lampe ne repond pas, le script reessaie toutes les 30 s, y compris si elle s'eteint en cours de route : il suffit de l'allumer. La capture ne tourne que lorsque la lampe est connectee.
+
+```sh
+journalctl --user -u 'app-AmbiLight@autostart' -f     # suivre
+systemctl --user stop 'app-AmbiLight@autostart'       # arreter pour la session
+rm ~/.config/autostart/AmbiLight.desktop              # desactiver l'autostart
+```
+
+Les scripts `test_*.py` prennent la MAC en argument : `source .env; python test_latency.py $GOVEE_MAC`.
+
+# Notes de conception
 
 ## Contexte
 
@@ -12,7 +36,7 @@ Phase d'analyse et de test a realiser
 
 ## Moyens
 
-Utiliser la librairie python donnee dans le [guide](./guide.md)
+Utiliser la librairie python donnee dans le [guide](doc/guide.md)
 Utiliser le terminal pour effectuer la phase d'analyse
 
 

@@ -34,7 +34,7 @@ def brightness(level):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Teste le pilotage individuel des 2 blocs Govee (gauche/droite).")
-    parser.add_argument("mac", nargs="?", default="AA:BB:CC:DD:EE:FF")
+    parser.add_argument("mac", help="Adresse MAC Bluetooth de la lampe")
     parser.add_argument("--brightness", type=int, default=100)
     parser.add_argument("--swap", action="store_true", help="inverse gauche et droite")
     args = parser.parse_args()
