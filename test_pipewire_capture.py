@@ -2,6 +2,7 @@
 import argparse
 import time
 import uuid
+from pathlib import Path
 
 import dbus
 import dbus.mainloop.glib
@@ -17,6 +18,20 @@ PORTAL_PATH = "/org/freedesktop/portal/desktop"
 SCREENCAST = "org.freedesktop.portal.ScreenCast"
 REQUEST = "org.freedesktop.portal.Request"
 SESSION = "org.freedesktop.portal.Session"
+
+# memorise le choix d'ecran KDE pour ne plus afficher la boite de dialogue au demarrage suivant
+RESTORE_TOKEN_FILE = Path(__file__).resolve().parent / ".screencast_restore_token"
+
+
+def load_restore_token():
+    if RESTORE_TOKEN_FILE.exists():
+        return RESTORE_TOKEN_FILE.read_text().strip() or None
+    return None
+
+
+def save_restore_token(token):
+    if token:
+        RESTORE_TOKEN_FILE.write_text(token)
 
 
 def parse_args():
@@ -62,20 +77,25 @@ def open_stream(bus):
         }
     )
     session = wait_for_response(bus, create)["session_handle"]
-    select = portal.SelectSources(
-        session,
-        {
-            "handle_token": option(dbus.String(f"select{token}")),
-            "types": option(dbus.UInt32(1)),
-            "multiple": option(dbus.Boolean(False)),
-            # cache le curseur : evite a KWin de le composer sur chaque frame, inutile pour une moyenne de couleur
-            "cursor_mode": option(dbus.UInt32(1)),
-        },
-    )
+    select_options = {
+        "handle_token": option(dbus.String(f"select{token}")),
+        "types": option(dbus.UInt32(1)),
+        "multiple": option(dbus.Boolean(False)),
+        # cache le curseur : evite a KWin de le composer sur chaque frame, inutile pour une moyenne de couleur
+        "cursor_mode": option(dbus.UInt32(1)),
+        # persiste le choix d'ecran jusqu'a revocation explicite (pas seulement pendant l'appli)
+        "persist_mode": option(dbus.UInt32(2)),
+    }
+    restore_token = load_restore_token()
+    if restore_token:
+        select_options["restore_token"] = option(dbus.String(restore_token))
+    select = portal.SelectSources(session, select_options)
     wait_for_response(bus, select)
     start = portal.Start(session, "", {"handle_token": option(dbus.String(f"start{token}"))})
-    streams = wait_for_response(bus, start)["streams"]
+    start_response = wait_for_response(bus, start)
+    streams = start_response["streams"]
     node_id = int(streams[0][0])
+    save_restore_token(str(start_response.get("restore_token", "")))
     pipewire_fd = portal.OpenPipeWireRemote(session, {})
     return session, node_id, pipewire_fd.take()
 
