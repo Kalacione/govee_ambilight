@@ -34,6 +34,8 @@ If the lights are off, it retries every 30 seconds, so you can turn them on at a
 
 If left and right are swapped, add `--invert-lr` in `al.sh`. For a lower update rate, replace `--profile fast` (10 Hz) with `--profile normal` (4 Hz).
 
+`--crop-y 13` leaves the top and bottom 13% of the screen out of the colour calculation, so the black bars of a 2.39:1 film do not darken the lights. Set it to `0` to use the whole screen. For brighter or dimmer lights overall, scale the three `CHANNEL_GAIN` values in `ambilight.py`.
+
 ```sh
 journalctl --user -u 'app-AmbiLight@autostart' -f    # logs
 systemctl --user stop 'app-AmbiLight@autostart'      # stop for this session

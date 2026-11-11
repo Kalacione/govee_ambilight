@@ -80,3 +80,13 @@ Deux leviers supplementaires ont permis de resoudre les micro-saccades :
 Resultat mesure : negociation DMA-BUF acceptee, micro-saccades disparues, temps de traitement ~0.001s.
 
 `ambilight.py` utilise desormais ce pipeline GPU par defaut (`test_pipewire_capture_gl.py`). Le pipeline CPU (`test_pipewire_capture.py`) reste disponible tel quel en reference/fallback si le GPU ou le driver NVIDIA venait a poser probleme sur une autre machine.
+
+## Bandes noires et luminosite globale
+
+Constat : sur un film en 2.39:1 affiche sur l ecran 16:9, les bandes noires comptent dans la moyenne et assombrissent le retro-eclairage (environ 25 % de pixels noirs).
+
+Solution retenue : `--crop-y POURCENT` retire du calcul cette part de la hauteur, en haut et en bas. `al.sh` passe 13, la taille des bandes d un film 2.39:1. Sur du 16:9 plein ecran, on ignore seulement les bords haut et bas, sans effet visible.
+
+Ecartee : la detection automatique des lignes noires image par image. Elle ferait varier la lumiere sur les scenes sombres (ciel de nuit pris pour une bande).
+
+Luminosite globale : `CHANNEL_GAIN` multiplie par 1,25, soit (1.25, 1.12, 1.0), en gardant le rapport entre canaux qui rechauffe le rendu.

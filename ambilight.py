@@ -28,8 +28,9 @@ BLE_ERRORS = (BleakError, TimeoutError)
 MASK_LEFT = (0x3F, 0x00)
 MASK_RIGHT = (0xC0, 0x0F)
 
-# rendu Govee trop froid/bleute : on plafonne chaque canal pour rechauffer le rendu
-CHANNEL_GAIN = (1.0, 0.9, 0.8)
+# rendu Govee trop froid/bleute : vert et bleu en retrait pour rechauffer le rendu.
+# Multiplier les 3 valeurs par un meme facteur regle la luminosite globale.
+CHANNEL_GAIN = (1.25, 1.12, 1.0)
 
 
 async def send(client, payload):
@@ -52,7 +53,7 @@ def analyze_side(rgb):
     return (red, green, blue), brightness
 
 
-def analyze_left_right(sample, width):
+def analyze_left_right(sample, width, crop_y=0):
     buffer = sample.get_buffer()
     success, mapped = buffer.map(Gst.MapFlags.READ)
     if not success:
@@ -64,7 +65,9 @@ def analyze_left_right(sample, width):
         height = len(rgb) // row_bytes
         left = bytearray()
         right = bytearray()
-        for row in range(height):
+        # bandes noires d'un film : lignes du haut et du bas hors du calcul
+        skip = round(height * crop_y / 100)
+        for row in range(skip, height - skip):
             start = row * row_bytes
             left += rgb[start : start + half_bytes]
             right += rgb[start + half_bytes : start + row_bytes]
@@ -80,7 +83,11 @@ def parse_args():
     parser.add_argument("--width", type=int, default=160)
     parser.add_argument("--height", type=int, default=None, help="defaut : proportionnel 16:9")
     parser.add_argument("--invert-lr", action="store_true", help="les 2 blocs sont physiquement inverses derriere l'ecran")
+    parser.add_argument("--crop-y", type=float, default=0, metavar="POURCENT",
+                        help="part de la hauteur ignoree en haut et en bas (bandes noires d'un film 2.39:1 : 13)")
     args = parser.parse_args()
+    if not 0 <= args.crop_y < 50:
+        parser.error("--crop-y doit etre entre 0 et 50 (exclu)")
     if args.width < 1 or args.width % 4 != 0:
         parser.error("--width doit etre un multiple de 4 (evite le padding de ligne GStreamer)")
     if args.height is None:
@@ -136,7 +143,7 @@ async def stream(args, bus, client):
             started = time.monotonic()
             sample = sink.emit("try-pull-sample", Gst.SECOND)
             if sample is not None:
-                (color_left, brightness_left), (color_right, brightness_right) = analyze_left_right(sample, args.width)
+                (color_left, brightness_left), (color_right, brightness_right) = analyze_left_right(sample, args.width, args.crop_y)
                 if (color_left, brightness_left) != last_left:
                     await send(client, brightness_command(brightness_left, mask=mask_left))
                     await send(client, color_command(*color_left, mask=mask_left))
