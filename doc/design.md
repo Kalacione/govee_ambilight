@@ -90,3 +90,25 @@ Solution retenue : `--crop-y POURCENT` retire du calcul cette part de la hauteur
 Ecartee : la detection automatique des lignes noires image par image. Elle ferait varier la lumiere sur les scenes sombres (ciel de nuit pris pour une bande).
 
 Luminosite globale : `CHANNEL_GAIN` multiplie par 1,25, soit (1.25, 1.12, 1.0), en gardant le rapport entre canaux qui rechauffe le rendu.
+
+
+## Connexion Bluetooth lente ou impossible
+
+Constat : lampe allumee, la connexion pouvait prendre de 2 a 18 minutes, au demarrage de session comme apres un redemarrage du programme.
+
+Mesures (dongle UGREEN BT6.0 partage avec une manette DualSense connectee, lampe a 2 m, RSSI -34) :
+- annonce de la lampe recue par le scan en 0,3 a 10 s ;
+- connexion et lecture des services en 3 a 17 s ;
+- apres une deconnexion, la lampe met une dizaine de secondes ou plus a se reannoncer.
+
+Cause : un seul delai de 5 s servait au scan puis a la connexion. Les deux etapes devaient tenir chacune en 5 s, ce qui arrivait environ une fois sur six. Un essai rate annulait la connexion en cours et tout repartait 30 s plus tard.
+
+Deuxieme cause : a l arret par systemd (SIGTERM), le programme mourait sans se deconnecter. BlueZ gardait la lampe connectee une dizaine de secondes, pendant lesquelles elle ne s annonce pas.
+
+Solution retenue :
+- scan de 10 s (`SCAN_SECONDS`), connexion de 30 s (`CONNECT_SECONDS`). Le scan reste court car il occupe le dongle meme lampe eteinte ; la connexion ne demarre que si la lampe vient d etre vue ;
+- SIGTERM traite comme Ctrl+C, pour une deconnexion propre.
+
+Resultat mesure : 11 s a froid, 30 a 90 s apres un redemarrage du programme (le temps que la lampe se reannonce), contre 18 minutes auparavant.
+
+Non teste : manette eteinte. Si la connexion reste lente, c est la premiere piste (le dongle partage son temps radio entre la manette et le scan).

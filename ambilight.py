@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
+import signal
 import time
 
 import dbus
 import dbus.mainloop.glib
 import gi
-from bleak import BleakClient
+from bleak import BleakClient, BleakScanner
 from bleak.exc import BleakError
 
 gi.require_version("GLib", "2.0")
@@ -21,7 +22,10 @@ from test_pipewire_capture_gl import start_pipeline
 PROFILES = {"normal": 4.0, "fast": 10.0}
 
 RETRY_SECONDS = 30
-SCAN_SECONDS = 5
+# mesure sur le dongle partage avec la manette : annonce recue en 0,3 a 8 s,
+# connexion etablie en 3 a 17 s. Des delais plus courts echouent presque toujours.
+SCAN_SECONDS = 10
+CONNECT_SECONDS = 30
 BLE_ERRORS = (BleakError, TimeoutError)
 
 # segments 0-5 = un bloc physique, 6-11 = l'autre (H6056 : 2 blocs, 1 seul appareil BLE)
@@ -97,13 +101,14 @@ def parse_args():
 
 async def connect(mac):
     # la lampe peut etre eteinte a l'ouverture de session : on attend qu'elle reponde.
-    # scan court : le dongle est partage avec la manette
+    # scan court (le dongle est partage avec la manette), connexion longue (elle ne
+    # demarre que si la lampe vient d'etre vue)
     while True:
-        client = BleakClient(mac, timeout=SCAN_SECONDS)
         try:
-            # une session precedente mal fermee (double Ctrl+C) laisse parfois BlueZ
-            # "deja connecte" sans avoir resolu les services : on repart d'un etat propre
-            await client.disconnect()
+            device = await BleakScanner.find_device_by_address(mac, timeout=SCAN_SECONDS)
+            if device is None:
+                raise BleakError("aucune annonce Bluetooth recue")
+            client = BleakClient(device, timeout=CONNECT_SECONDS)
             await client.connect()
             await send(client, frame([0x33, 0x01, 0x01]))
             return client
@@ -176,6 +181,9 @@ async def run(args):
 
 
 if __name__ == "__main__":
+    # arret par systemd (SIGTERM) traite comme Ctrl+C : sans deconnexion propre, BlueZ
+    # garde la lampe connectee et elle reste introuvable au lancement suivant
+    signal.signal(signal.SIGTERM, lambda *_: signal.raise_signal(signal.SIGINT))
     try:
         asyncio.run(run(parse_args()))
     except KeyboardInterrupt:
