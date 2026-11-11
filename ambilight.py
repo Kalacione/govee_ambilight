@@ -21,10 +21,11 @@ from test_pipewire_capture_gl import start_pipeline
 
 PROFILES = {"normal": 4.0, "fast": 10.0}
 
-RETRY_SECONDS = 30
-# mesure sur le dongle partage avec la manette : annonce recue en 0,3 a 8 s,
+# mesure sur le dongle partage avec la manette : annonce recue en 0,3 a 10 s,
 # connexion etablie en 3 a 17 s. Des delais plus courts echouent presque toujours.
-SCAN_SECONDS = 10
+# Essais espaces : chaque scan gene la connexion de la manette.
+RETRY_SECONDS = 120
+SCAN_SECONDS = 15
 CONNECT_SECONDS = 30
 BLE_ERRORS = (BleakError, TimeoutError)
 
@@ -101,8 +102,7 @@ def parse_args():
 
 async def connect(mac):
     # la lampe peut etre eteinte a l'ouverture de session : on attend qu'elle reponde.
-    # scan court (le dongle est partage avec la manette), connexion longue (elle ne
-    # demarre que si la lampe vient d'etre vue)
+    # la connexion ne demarre que si le scan vient de voir la lampe
     while True:
         try:
             device = await BleakScanner.find_device_by_address(mac, timeout=SCAN_SECONDS)

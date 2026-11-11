@@ -106,9 +106,10 @@ Cause : un seul delai de 5 s servait au scan puis a la connexion. Les deux etape
 Deuxieme cause : a l arret par systemd (SIGTERM), le programme mourait sans se deconnecter. BlueZ gardait la lampe connectee une dizaine de secondes, pendant lesquelles elle ne s annonce pas.
 
 Solution retenue :
-- scan de 10 s (`SCAN_SECONDS`), connexion de 30 s (`CONNECT_SECONDS`). Le scan reste court car il occupe le dongle meme lampe eteinte ; la connexion ne demarre que si la lampe vient d etre vue ;
+- scan de 15 s (`SCAN_SECONDS`), connexion de 30 s (`CONNECT_SECONDS`). La connexion ne demarre que si la lampe vient d etre vue ;
+- un essai au lancement puis un toutes les 2 minutes (`RETRY_SECONDS`), au lieu de 30 s : lampe eteinte, les scans rapproches genaient la connexion de la manette sur le meme dongle ;
 - SIGTERM traite comme Ctrl+C, pour une deconnexion propre.
 
-Resultat mesure : 11 s a froid, 30 a 90 s apres un redemarrage du programme (le temps que la lampe se reannonce), contre 18 minutes auparavant.
+Resultat mesure (avec un scan de 10 s toutes les 30 s) : 11 s a froid, 30 a 90 s apres un redemarrage du programme (le temps que la lampe se reannonce), contre 18 minutes auparavant.
 
 Non teste : manette eteinte. Si la connexion reste lente, c est la premiere piste (le dongle partage son temps radio entre la manette et le scan).

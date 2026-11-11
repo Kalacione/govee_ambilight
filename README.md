@@ -30,7 +30,7 @@ GOVEE_MAC=AA:BB:CC:DD:EE:FF
 
 Log in to KDE, or run `./al.sh`. The first time, KDE asks which screen to capture. Your choice is remembered.
 
-If the lights are off, it retries every 30 seconds, so you can turn them on at any time. The screen is only captured while they are connected.
+If the lights are off, it retries every 2 minutes, so you can turn them on at any time. The screen is only captured while they are connected.
 
 If left and right are swapped, add `--invert-lr` in `al.sh`. For a lower update rate, replace `--profile fast` (10 Hz) with `--profile normal` (4 Hz).
 
